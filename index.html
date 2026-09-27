@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>90's MACHINE - RETRO AR</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fredoka:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+  <!-- STABLE LIBRARIES (A-Frame 1.4.2 + MindAR 1.2.2) -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      touch-action: none;
+    }
+
+    video.mindar-video {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
+      z-index: 0 !important;
+      display: block !important;
+      background: transparent !important;
+    }
+
+    canvas.mindar-canvas {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 1 !important;
+      display: block !important;
+      pointer-events: auto !important;
+    }
+
+    a-scene, .a-canvas {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 2 !important;
+      display: block !important;
+      background: transparent !important;
+      pointer-events: auto !important;
+    }
+
+    .a-enter-vr, .a-enter-ar, .a-orientation-modal, .a-loader-title {
+      display: none !important;
+    }
+
+    /* ENTRY SCREEN */
+    #entry-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: #f2e6c9;
+    }
+    #entry-screen.hidden { display: none; }
+
+    #entry-sunburst {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 220vw;
+      height: 220vw;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: repeating-conic-gradient(#1b6b67 0deg 9deg, #7a2426 9deg 18deg);
+      opacity: 0.18;
+    }
+
+    #entry-title {
+      position: relative;
+      margin: 0;
+      color: #7a2426;
+      font-family: "Baloo 2", sans-serif;
+      font-size: clamp(38px, 12vw, 60px);
+      font-weight: 800;
+      letter-spacing: 1px;
+      line-height: 0.95;
+      text-shadow: 4px 4px 0 #e8a62e, 7px 7px 0 #241a14;
+    }
+
+    #entry-subtitle {
+      position: relative;
+      margin-top: 14px;
+      padding: 7px 22px;
+      border: 3px solid #241a14;
+      border-radius: 999px;
+      background: #1b6b67;
+      color: #f7efd9;
+      font-family: "Fredoka", sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    #entry-hint {
+      position: relative;
+      max-width: 300px;
+      margin: 26px 0 0;
+      color: #241a14;
+      font-family: "Fredoka", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      opacity: 0.8;
+    }
+
+    #entry-btn {
+      position: relative;
+      margin-top: 22px;
+      padding: 14px 38px;
+      border: 3px solid #241a14;
+      border-radius: 999px;
+      background: #e8a62e;
+      color: #241a14;
+      box-shadow: 4px 4px 0 #241a14;
+      font-family: "Fredoka", sans-serif;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #entry-btn:active {
+      transform: translate(3px, 3px);
+      box-shadow: 1px 1px 0 #241a14;
+    }
+
+    /* SCAN HUD */
+    #scan-hud {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+    #scan-hud.visible { opacity: 1; }
+
+    #scan-frame {
+      position: relative;
+      width: 58vw;
+      max-width: 320px;
+      aspect-ratio: 1 / 1.15;
+    }
+
+    #scan-frame .corner {
+      position: absolute;
+      width: 34px;
+      height: 34px;
+      border: 4px solid #1b6b67;
+      animation: scan-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes scan-pulse {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 1; }
+    }
+    #scan-frame .tl { top: 0; left: 0; border-right: none; border-bottom: none; border-radius: 10px 0 0 0; }
+    #scan-frame .tr { top: 0; right: 0; border-bottom: none; border-left: none; border-radius: 0 10px 0 0; }
+    #scan-frame .bl { bottom: 0; left: 0; border-top: none; border-right: none; border-radius: 0 0 0 10px; }
+    #scan-frame .br { right: 0; bottom: 0; border-top: none; border-left: none; border-radius: 0 0 10px 0; }
+
+    #scan-hint {
+      position: absolute;
+      bottom: -44px;
+      left: 50%;
+      padding: 6px 16px;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.58);
+      color: #ffffff;
+      font-family: "Fredoka", sans-serif;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    /* GALLERY HUD (counter + swipe hint) */
+    #interaction-hud {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      background: rgba(36, 26, 20, 0.88);
+      border: 2px solid #e8a62e;
+      border-radius: 999px;
+      color: #f7efd9;
+      font-family: "Fredoka", sans-serif;
+      font-size: 13px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+    #interaction-hud.visible { opacity: 1; }
+    #gallery-counter {
+      font-family: "Share Tech Mono", monospace;
+      color: #e8a62e;
+      font-size: 13px;
+    }
+    .hud-sep { opacity: 0.5; }
+
+    /* GALLERY NAV ARROWS */
+    .gallery-nav-btn {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 80;
+      width: 46px;
+      height: 46px;
+      border: 3px solid #241a14;
+      border-radius: 50%;
+      background: rgba(247, 239, 217, 0.92);
+      color: #7a2426;
+      font-family: "Baloo 2", sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 3px 3px 0 #241a14;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+    .gallery-nav-btn.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .gallery-nav-btn:active {
+      transform: translateY(-50%) translate(2px, 2px);
+      box-shadow: 1px 1px 0 #241a14;
+    }
+    .gallery-nav-btn.left { left: 14px; }
+    .gallery-nav-btn.right { right: 14px; }
+
+    #ar-error-toast {
+      position: fixed;
+      bottom: 26px;
+      left: 50%;
+      z-index: 110;
+      display: none;
+      max-width: 86vw;
+      padding: 12px 18px;
+      border-radius: 14px;
+      transform: translateX(-50%);
+      background: rgba(20, 10, 8, 0.94);
+      color: #f7efd9;
+      font-family: "Fredoka", sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+    }
+    #ar-error-toast.visible { display: block; }
+
+    #ambient-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 44;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .ambient-dot {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #1b6b67;
+      opacity: 0;
+    }
+
+    #brand-watermark {
+      position: fixed;
+      right: 14px;
+      top: 14px;
+      z-index: 42;
+      pointer-events: none;
+      background: transparent;
+      color: #f7efd9;
+      font-family: "Fredoka", sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 6px rgba(0, 0, 0, 0.35);
+      opacity: 0.92;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="entry-screen">
+    <div id="entry-sunburst"></div>
+    <h1 id="entry-title">90's MACHINE</h1>
+    <div id="entry-subtitle">Touch the Past, Feel the Sound</div>
+    <p id="entry-hint">Point your camera at the target, then tap below to begin.</p>
+    <button id="entry-btn" type="button">Tap to Begin</button>
+  </div>
+
+  <div id="scan-hud">
+    <div id="scan-frame">
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <div id="scan-hint">Point at the target</div>
+    </div>
+  </div>
+
+  <div id="interaction-hud">
+    <span id="gallery-counter">1 / 11</span>
+    <span class="hud-sep">&bull;</span>
+    <span>Swipe to browse</span>
+  </div>
+
+  <button id="gallery-prev" class="gallery-nav-btn left" type="button" aria-label="Previous image">&lsaquo;</button>
+  <button id="gallery-next" class="gallery-nav-btn right" type="button" aria-label="Next image">&rsaquo;</button>
+
+  <div id="ambient-layer"></div>
+  <div id="ar-error-toast"></div>
+  <div id="brand-watermark">90&#8217;s Cafe, Khammam</div>
+
+  <a-scene
+    id="ar-scene"
+    mindar-image="
+      imageTargetSrc: ./targets.mind;
+      uiLoading: no;
+      uiScanning: no;
+      uiError: no;
+      autoStart: false;
+    "
+    color-space="sRGB"
+    renderer="
+      alpha: true;
+      antialias: true;
+      colorManagement: true;
+      physicallyCorrectLights: true;
+    "
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    embedded
+  >
+    <a-assets>
+      <!-- Gallery images: images/1.png ... images/9.png, images/9-1.png, images/10.png -->
+      <img id="gal-0" src="./images/1.png" crossorigin="anonymous">
+      <img id="gal-1" src="./images/2.png" crossorigin="anonymous">
+      <img id="gal-2" src="./images/3.png" crossorigin="anonymous">
+      <img id="gal-3" src="./images/4.png" crossorigin="anonymous">
+      <img id="gal-4" src="./images/5.png" crossorigin="anonymous">
+      <img id="gal-5" src="./images/6.png" crossorigin="anonymous">
+      <img id="gal-6" src="./images/7.png" crossorigin="anonymous">
+      <img id="gal-7" src="./images/8.png" crossorigin="anonymous">
+      <img id="gal-8" src="./images/9.png" crossorigin="anonymous">
+      <img id="gal-9" src="./images/9-1.png" crossorigin="anonymous">
+      <img id="gal-10" src="./images/10.png" crossorigin="anonymous">
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- Target 0: single image target, shows a swipeable image gallery -->
+    <a-entity id="target-0" mindar-image-target="targetIndex: 0">
+      <a-entity id="gallery-root" position="0 0 0" rotation="0 0 0">
+        <a-plane
+          id="gallery-plane"
+          material="shader: flat; side: double; transparent: true"
+          width="0.001"
+          height="0.001"
+        ></a-plane>
+      </a-entity>
+    </a-entity>
+  </a-scene>
+
+<script>
+  "use strict";
+
+  const sceneEl = document.querySelector("#ar-scene");
+  const entryScreen = document.querySelector("#entry-screen");
+  const entryBtn = document.querySelector("#entry-btn");
+  const scanHud = document.querySelector("#scan-hud");
+  const interactionHud = document.querySelector("#interaction-hud");
+  const errorToast = document.querySelector("#ar-error-toast");
+  const ambientLayer = document.querySelector("#ambient-layer");
+
+  const galleryPlane = document.querySelector("#gallery-plane");
+  const galleryCounter = document.querySelector("#gallery-counter");
+  const galleryPrevBtn = document.querySelector("#gallery-prev");
+  const galleryNextBtn = document.querySelector("#gallery-next");
+  const targetEntity = document.querySelector("#target-0");
+
+  // Same physical footprint for every image (contain-fit inside this box,
+  // so nothing gets stretched/distorted but every image reads as "the
+  // same size" on the target).
+  const GALLERY_MAX_DIM = 0.7;
+
+  const GALLERY_IMAGES = [
+    "#gal-0", "#gal-1", "#gal-2", "#gal-3", "#gal-4",
+    "#gal-5", "#gal-6", "#gal-7", "#gal-8", "#gal-9", "#gal-10"
+  ];
+
+  let hasStartedAR = false;
+  let isTargetActive = false;
+  let ambientTimer = null;
+  let sceneReady = false;
+  let galleryIndex = 0;
+
+  let isSwiping = false;
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+
+  // ------------------------------------------------------------
+  // HELPERS
+  // ------------------------------------------------------------
+
+  function showError(message) {
+    console.error("90's MACHINE:", message);
+    errorToast.textContent = message;
+    errorToast.classList.add("visible");
+  }
+
+  function hideError() {
+    errorToast.classList.remove("visible");
+  }
+
+  function getCameraErrorMessage(error) {
+    const name = error && error.name ? error.name : "";
+    const message = error && error.message ? error.message : "";
+
+    console.error("90's MACHINE camera error:", { name, message, error });
+
+    if (!window.isSecureContext &&
+        location.hostname !== "localhost" &&
+        location.hostname !== "127.0.0.1") {
+      return "Camera needs HTTPS. Open this page using an HTTPS URL, not a normal HTTP URL.";
+    }
+
+    switch (name) {
+      case "NotAllowedError":
+      case "PermissionDeniedError":
+        return "Camera permission is blocked. Allow Camera for this website in browser settings, then reload the page.";
+
+      case "NotFoundError":
+        return "No camera was found on this device. Check that a camera is available and not disabled.";
+
+      case "NotReadableError":
+      case "TrackStartError":
+        return "The camera is already being used by another app or browser tab. Close other camera apps/tabs and try again.";
+
+      case "OverconstrainedError":
+        return "The selected camera settings are not supported by this device. Try again in Chrome or Safari.";
+
+      case "SecurityError":
+        return "The browser is blocking camera access for security reasons. Use HTTPS and allow camera access.";
+
+      case "AbortError":
+        return "The camera startup was interrupted. Close other camera apps and try again.";
+
+      case "TypeError":
+        return "Camera access is unavailable in this page. Make sure you are using HTTPS or localhost and a supported browser.";
+
+      default:
+        return message
+          ? `Camera could not start: ${name || "Unknown error"} — ${message}`
+          : "Camera could not start. Check browser camera permission and use HTTPS.";
+    }
+  }
+
+  function waitForSceneLoaded() {
+    if (sceneEl.hasLoaded || sceneReady) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      sceneEl.addEventListener("loaded", () => {
+        sceneReady = true;
+        resolve();
+      }, { once: true });
+    });
+  }
+
+  function getMindARSystem() {
+    const system = sceneEl.systems && sceneEl.systems["mindar-image-system"];
+
+    if (!system) {
+      throw new Error("MindAR image system is not available.");
+    }
+
+    return system;
+  }
+
+  // ------------------------------------------------------------
+  // GALLERY (replaces the old 3D model display — flat images only,
+  // no 360° rotation; swipe left/right moves to the next/previous image)
+  // ------------------------------------------------------------
+
+  function computeContainSize(imgEl) {
+    const w = imgEl.naturalWidth || 1;
+    const h = imgEl.naturalHeight || 1;
+    const ratio = w / h;
+
+    if (ratio >= 1) {
+      return { width: GALLERY_MAX_DIM, height: GALLERY_MAX_DIM / ratio };
+    }
+    return { width: GALLERY_MAX_DIM * ratio, height: GALLERY_MAX_DIM };
+  }
+
+  function updateGalleryCounter() {
+    galleryCounter.textContent = `${galleryIndex + 1} / ${GALLERY_IMAGES.length}`;
+  }
+
+  function showGalleryImage(index, animate) {
+    const selector = GALLERY_IMAGES[index];
+    const imgEl = document.querySelector(selector);
+
+    const applyImage = () => {
+      const size = computeContainSize(imgEl);
+      galleryPlane.setAttribute("material", "src", selector);
+      galleryPlane.setAttribute("width", size.width);
+      galleryPlane.setAttribute("height", size.height);
+
+      if (animate && galleryPlane.object3D) {
+        gsap.killTweensOf(galleryPlane.object3D.scale);
+        gsap.fromTo(
+          galleryPlane.object3D.scale,
+          { x: 0.001, y: 0.001, z: 0.001 },
+          { x: 1, y: 1, z: 1, duration: 0.45, ease: "back.out(1.5)" }
+        );
+      } else if (galleryPlane.object3D) {
+        galleryPlane.object3D.scale.set(1, 1, 1);
+      }
+    };
+
+    if (imgEl.complete && imgEl.naturalWidth) {
+      applyImage();
+    } else {
+      imgEl.addEventListener("load", applyImage, { once: true });
+    }
+
+    updateGalleryCounter();
+  }
+
+  function nextImage() {
+    if (!isTargetActive) return;
+    galleryIndex = (galleryIndex + 1) % GALLERY_IMAGES.length;
+    showGalleryImage(galleryIndex, true);
+  }
+
+  function prevImage() {
+    if (!isTargetActive) return;
+    galleryIndex = (galleryIndex - 1 + GALLERY_IMAGES.length) % GALLERY_IMAGES.length;
+    showGalleryImage(galleryIndex, true);
+  }
+
+  galleryNextBtn.addEventListener("click", nextImage);
+  galleryPrevBtn.addEventListener("click", prevImage);
+
+  // ------------------------------------------------------------
+  // ENTRY SCREEN ANIMATIONS
+  // ------------------------------------------------------------
+
+  gsap.set("#entry-title, #entry-subtitle, #entry-hint, #entry-btn", { opacity: 0 });
+  gsap.set("#entry-title", { scale: 0.7 });
+
+  gsap.to("#entry-sunburst", {
+    rotate: 360,
+    duration: 50,
+    repeat: -1,
+    ease: "none"
+  });
+
+  gsap.timeline()
+    .to("#entry-title", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 0.1)
+    .to("#entry-subtitle", { opacity: 1, duration: 0.4 }, 0.4)
+    .to("#entry-hint", { opacity: 1, duration: 0.4 }, 0.6)
+    .to("#entry-btn", { opacity: 1, duration: 0.4 }, 0.75);
+
+  // ------------------------------------------------------------
+  // A-FRAME / MINDAR EVENTS
+  // ------------------------------------------------------------
+
+  entryBtn.disabled = true;
+  entryBtn.textContent = "Loading…";
+
+  sceneEl.addEventListener("loaded", () => {
+    sceneReady = true;
+
+    if (galleryPlane.object3D) {
+      galleryPlane.object3D.scale.set(0.001, 0.001, 0.001);
+    }
+
+    if (!hasStartedAR) {
+      entryBtn.disabled = false;
+      entryBtn.textContent = "Tap to Begin";
+    }
+  });
+
+  sceneEl.addEventListener("arReady", () => {
+    console.log("90's MACHINE: MindAR camera is ready.");
+    hideError();
+  });
+
+  sceneEl.addEventListener("arError", (event) => {
+    console.error("90's MACHINE: MindAR arError:", event.detail);
+
+    let detailMessage = "";
+    if (event.detail) {
+      if (typeof event.detail === "string") {
+        detailMessage = event.detail;
+      } else if (event.detail.error) {
+        detailMessage = event.detail.error.name || event.detail.error.message || "";
+      } else if (event.detail.message) {
+        detailMessage = event.detail.message;
+      }
+    }
+
+    showError(
+      detailMessage
+        ? `Camera/AR error: ${detailMessage}`
+        : "MindAR could not start the camera. Check camera permission and HTTPS."
+    );
+
+    entryBtn.disabled = false;
+    entryBtn.textContent = "Try Again";
+    hasStartedAR = false;
+  });
+
+  // ------------------------------------------------------------
+  // START CAMERA
+  // IMPORTANT: Do NOT call getUserMedia() here — MindAR owns the stream.
+  // ------------------------------------------------------------
+
+  entryBtn.addEventListener("click", async () => {
+    if (entryBtn.disabled || hasStartedAR) return;
+
+    hideError();
+
+    try {
+      entryBtn.disabled = true;
+      entryBtn.textContent = "Starting camera…";
+
+      const isLocalhost =
+        location.hostname === "localhost" ||
+        location.hostname === "127.0.0.1";
+
+      if (!window.isSecureContext && !isLocalhost) {
+        throw new DOMException("Camera access requires HTTPS or localhost.", "SecurityError");
+      }
+
+      await waitForSceneLoaded();
+
+      if (!navigator.mediaDevices ||
+          typeof navigator.mediaDevices.getUserMedia !== "function") {
+        throw new DOMException(
+          "Camera API is not available in this browser/context.",
+          "TypeError"
+        );
+      }
+
+      const mindarSystem = getMindARSystem();
+
+      console.log("90's MACHINE: Starting MindAR…");
+      mindarSystem.start();
+
+      hasStartedAR = true;
+
+      await new Promise(resolve => setTimeout(resolve, 250));
+
+      gsap.to("#entry-screen", {
+        opacity: 0,
+        scale: 1.05,
+        duration: 0.4,
+        ease: "power1.in",
+        onComplete: () => {
+          entryScreen.classList.add("hidden");
+
+          if (!isTargetActive) {
+            scanHud.classList.add("visible");
+            startAmbientParticles();
+          }
+        }
+      });
+
+      entryBtn.textContent = "Camera Ready";
+
+    } catch (error) {
+      console.error("90's MACHINE: Start error:", error);
+
+      hasStartedAR = false;
+      entryBtn.disabled = false;
+      entryBtn.textContent = "Try Again";
+
+      showError(getCameraErrorMessage(error));
+    }
+  });
+
+  // ------------------------------------------------------------
+  // SWIPE NAVIGATION (flat images only — no 360° rotation)
+  // ------------------------------------------------------------
+
+  window.addEventListener("pointerdown", (e) => {
+    if (!entryScreen.classList.contains("hidden")) return;
+    if (e.target.closest("#entry-screen")) return;
+    if (e.target.closest(".gallery-nav-btn")) return;
+    if (!isTargetActive) return;
+
+    isSwiping = true;
+    swipeStartX = e.clientX;
+    swipeStartY = e.clientY;
+  });
+
+  window.addEventListener("pointerup", (e) => {
+    if (!isSwiping) return;
+    isSwiping = false;
+
+    const deltaX = e.clientX - swipeStartX;
+    const deltaY = e.clientY - swipeStartY;
+    const SWIPE_THRESHOLD = 40;
+
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) {
+        nextImage();
+      } else {
+        prevImage();
+      }
+    }
+  });
+
+  window.addEventListener("pointercancel", () => { isSwiping = false; });
+  window.addEventListener("pointerleave", () => { isSwiping = false; });
+
+  // ------------------------------------------------------------
+  // TARGET DETECTION (single target -> gallery)
+  // ------------------------------------------------------------
+
+  targetEntity.addEventListener("targetFound", () => {
+    console.log("90's MACHINE: Target found.");
+
+    isTargetActive = true;
+
+    scanHud.classList.remove("visible");
+    interactionHud.classList.add("visible");
+    galleryPrevBtn.classList.add("visible");
+    galleryNextBtn.classList.add("visible");
+    stopAmbientParticles();
+
+    galleryIndex = 0;
+    showGalleryImage(galleryIndex, true);
+  });
+
+  targetEntity.addEventListener("targetLost", () => {
+    console.log("90's MACHINE: Target lost.");
+
+    isTargetActive = false;
+    interactionHud.classList.remove("visible");
+    galleryPrevBtn.classList.remove("visible");
+    galleryNextBtn.classList.remove("visible");
+
+    if (galleryPlane.object3D) {
+      gsap.to(galleryPlane.object3D.scale, {
+        x: 0.001,
+        y: 0.001,
+        z: 0.001,
+        duration: 0.2,
+        ease: "power1.in"
+      });
+    }
+
+    if (entryScreen.classList.contains("hidden")) {
+      scanHud.classList.add("visible");
+      startAmbientParticles();
+    }
+  });
+
+  // ------------------------------------------------------------
+  // AMBIENT PARTICLES
+  // ------------------------------------------------------------
+
+  function spawnAmbientDot() {
+    const dot = document.createElement("div");
+    dot.className = "ambient-dot";
+
+    const x = window.innerWidth * (0.3 + Math.random() * 0.4);
+    const startY = window.innerHeight * 0.75;
+
+    dot.style.left = `${x}px`;
+    dot.style.top = `${startY}px`;
+
+    ambientLayer.appendChild(dot);
+
+    gsap.timeline({ onComplete: () => dot.remove() })
+      .to(dot, { opacity: 0.6, duration: 0.4 }, 0)
+      .to(dot, {
+        y: -180 - Math.random() * 100,
+        x: `+=${(Math.random() - 0.5) * 60}`,
+        duration: 2.4,
+        ease: "power1.out"
+      }, 0)
+      .to(dot, { opacity: 0, duration: 0.5 }, 1.9);
+  }
+
+  function startAmbientParticles() {
+    if (ambientTimer) return;
+    spawnAmbientDot();
+    ambientTimer = window.setInterval(spawnAmbientDot, 700);
+  }
+
+  function stopAmbientParticles() {
+    if (ambientTimer) {
+      window.clearInterval(ambientTimer);
+      ambientTimer = null;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // PAGE VISIBILITY — stop camera when page is hidden.
+  // ------------------------------------------------------------
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden) {
+      try {
+        if (hasStartedAR) {
+          const mindarSystem = sceneEl.systems["mindar-image-system"];
+          if (mindarSystem && typeof mindarSystem.stop === "function") {
+            await mindarSystem.stop();
+          }
+        }
+      } catch (error) {
+        console.warn("90's MACHINE: Could not stop camera:", error);
+      }
+    }
+  });
+
+  // ------------------------------------------------------------
+  // INITIAL ENVIRONMENT CHECK
+  // ------------------------------------------------------------
+
+  console.log("90's MACHINE environment:", {
+    href: location.href,
+    secureContext: window.isSecureContext,
+    mediaDevices: !!navigator.mediaDevices,
+    userAgent: navigator.userAgent
+  });
+</script>
+</body>
+</html>
